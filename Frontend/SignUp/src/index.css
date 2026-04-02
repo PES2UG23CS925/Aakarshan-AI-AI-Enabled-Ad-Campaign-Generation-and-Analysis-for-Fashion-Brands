@@ -1,0 +1,289 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap");
+@import "tailwindcss";
+
+
+/* ================= NAV LINK HOVER ANIMATION ================= */
+
+.nav-link {
+  position: relative;
+  transition: color 0.3s ease;
+}
+
+.nav-link::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  bottom: -4px;
+  width: 0%;
+  height: 2px;
+  background: #4f46e5;
+  transition: width 0.3s ease;
+}
+
+.nav-link:hover::after {
+  width: 100%;
+}
+
+
+
+* {
+  box-sizing: border-box;
+  font-family: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
+}
+
+body {
+  margin: 0;
+  /* Watercolor-style pastel background: layered radial gradients + subtle linear base */
+  background: radial-gradient(ellipse at 15% 20%, rgba(255,230,235,0.85) 0%, rgba(255,230,235,0) 30%),
+              radial-gradient(ellipse at 85% 10%, rgba(200,230,255,0.8) 0%, rgba(200,230,255,0) 35%),
+              radial-gradient(ellipse at 50% 80%, rgba(245,245,220,0.7) 0%, rgba(245,245,220,0) 30%),
+              linear-gradient(180deg, #fbf7ff 0%, #eef8ff 100%);
+  background-blend-mode: screen, multiply, overlay, normal;
+  background-size: cover;
+  background-attachment: fixed;
+}
+
+/* ================= BACKGROUND DESIGN ================= */
+
+.bg-shape-1 {
+  position: absolute;
+  top: -140px;
+  right: -160px;
+  width: 620px;
+  height: 420px;
+  background: linear-gradient(135deg, #ff5fa2, #a855f7);
+  border-bottom-left-radius: 100%;
+}
+
+.bg-shape-2 {
+  position: absolute;
+  bottom: -160px;
+  right: -160px;
+  width: 480px;
+  height: 480px;
+  background: radial-gradient(circle at top left, #22d3ee, #3b82f6);
+  border-radius: 50%;
+}
+
+.bg-circle-yellow {
+  position: absolute;
+  right: 280px;
+  top: 280px;
+  width: 120px;
+  height: 120px;
+  background: #facc15;
+  border-radius: 50%;
+}
+
+.bg-circle-blue {
+  position: absolute;
+  right: 190px;
+  top: 380px;
+  width: 60px;
+  height: 60px;
+  background: #38bdf8;
+  border-radius: 50%;
+}
+
+/* Keep UI above background */
+.auth-layout {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  background: transparent;
+  position: relative;
+  z-index: 2;
+}
+
+/* ================= LAYOUT ================= */
+
+.auth-left {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+}
+
+.auth-logo {
+  height: 640px;
+  max-height: 85vh;
+  width: auto;
+  object-fit: contain;
+  border-radius: 16px;
+  overflow: hidden;
+}
+
+.auth-right {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ================= CARD ================= */
+
+.card {
+  background: white;
+  padding: 40px;
+  width: 520px;
+  border-radius: 28px;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.12);
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+}
+
+.title {
+  font-weight: 600;
+  letter-spacing: -0.3px;
+}
+
+.tagline {
+  font-weight: 400;
+  font-size: 14px;
+}
+
+/* ================= INPUTS ================= */
+
+input {
+  width: 100%;
+  padding: 14px;
+  margin-bottom: 14px;
+  border-radius: 25px;
+  border: 1px solid #ccc;
+  font-size: 14px;
+  text-align: center;
+}
+
+input::placeholder {
+  text-align: center;
+  color: #9aa0a6;
+  opacity: 1;
+  font-size: 18px;
+  letter-spacing: 0.4px;
+}
+
+input::-webkit-input-placeholder {
+  font-size: 18px;
+  letter-spacing: 0.4px;
+}
+input::-moz-placeholder {
+  font-size: 18px;
+  letter-spacing: 0.4px;
+}
+input:-ms-input-placeholder {
+  font-size: 18px;
+  letter-spacing: 0.4px;
+}
+input::-ms-input-placeholder {
+  font-size: 18px;
+  letter-spacing: 0.4px;
+}
+
+input:focus,
+input:not(:placeholder-shown) {
+  text-align: left;
+}
+
+/* ================= BUTTONS ================= */
+
+.primary-btn {
+  width: 100%;
+  padding: 14px;
+  border-radius: 25px;
+  border: none;
+  background: #4f46e5;
+  color: white;
+  font-size: 16px;
+  cursor: pointer;
+  margin-top: 4px;
+}
+
+.primary-btn:hover {
+  background: #4338ca;
+}
+
+/* ================= DIVIDER ================= */
+
+.divider {
+  display: flex;
+  align-items: center;
+  margin: 20px 0;
+  color: #999;
+  font-size: 12px;
+}
+
+.divider::before,
+.divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: #e0e0e0;
+}
+
+.divider span {
+  margin: 0 10px;
+}
+
+/* ================= GOOGLE BUTTON ================= */
+
+.google-btn {
+  width: 100%;
+  padding: 14px;
+  border-radius: 25px;
+  border: 1px solid #d1d5db;
+  background: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  font-size: 20px;
+  letter-spacing: 0.6px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.google-btn img {
+  width: 24px;
+  height: 24px;
+}
+
+.google-btn:hover {
+  background: #f9fafb;
+}
+
+/* ================= SWITCH TEXT ================= */
+
+.switch {
+  margin-top: 16px;
+  font-size: 18px;
+  line-height: 1.3;
+}
+
+.switch span {
+  color: #4f46e5;
+  font-weight: 700;
+  cursor: pointer;
+  font-size: 18px;
+  letter-spacing: 0.3px;
+}
+
+.error-text {
+  color: #dc2626;
+  font-size: 13px;
+  margin-bottom: 10px;
+}
+
+/* ================= MOBILE ================= */
+
+@media (max-width: 768px) {
+  .auth-left {
+    display: none;
+  }
+}
+
+@media (max-width: 520px) {
+  .card {
+    width: 90%;
+    padding: 30px 20px;
+  }
+}

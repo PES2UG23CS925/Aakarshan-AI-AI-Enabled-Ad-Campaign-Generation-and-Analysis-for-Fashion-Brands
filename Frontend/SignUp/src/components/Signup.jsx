@@ -147,13 +147,8 @@
 //       <p className="switch">
 //         Already have an account?{" "}
 //         <span onClick={onSwitch}>Login</span>
-//       </p>
-//     </div>
-//   );
-// }
-
-
 import { useState } from "react";
+import { apiService } from "../services/apiService";
 
 export default function Signup({ onSwitch }) {
   const [fullName, setFullName] = useState("");
@@ -161,35 +156,37 @@ export default function Signup({ onSwitch }) {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
   async function handleSignup() {
-
     // Confirm password validation
     if (password !== confirmPassword) {
       setError("Passwords do not match");
       return;
     }
 
+    if (!fullName || !email || !password) {
+      setError("All fields are required");
+      return;
+    }
+
     setError("");
+    setLoading(true);
 
     try {
-      const res = await fetch("http://localhost:5000/api/auth/register", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          fullName,
-          email,
-          password
-        })
-      });
-
-      const data = await res.json();
-      alert(data.message);
+      const data = await apiService.register(fullName, email, password);
+      
+      if (data.message) {
+        alert(data.message);
+        if (data.message.includes("successfully")) {
+          onSwitch(); // Switch to login
+        }
+      }
     } catch (err) {
       console.error(err);
-      alert("Server error");
+      setError("Registration failed. Please try again.");
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -204,9 +201,10 @@ export default function Signup({ onSwitch }) {
 
       <input
         type="text"
-        placeholder="Username"
+        placeholder="Full Name"
         value={fullName}
         onChange={(e) => setFullName(e.target.value)}
+        disabled={loading}
       />
 
       <input
@@ -214,6 +212,7 @@ export default function Signup({ onSwitch }) {
         placeholder="Email"
         value={email}
         onChange={(e) => setEmail(e.target.value)}
+        disabled={loading}
       />
 
       <input
@@ -221,27 +220,36 @@ export default function Signup({ onSwitch }) {
         placeholder="Password"
         value={password}
         onChange={(e) => setPassword(e.target.value)}
+        disabled={loading}
       />
 
-      {/* Confirm Password */}
       <input
         type="password"
         placeholder="Confirm Password"
         value={confirmPassword}
         onChange={(e) => setConfirmPassword(e.target.value)}
+        disabled={loading}
       />
 
       {error && <p className="error-text">{error}</p>}
 
-      <button className="primary-btn" onClick={handleSignup}>
-        Sign Up
+      <button 
+        className="primary-btn" 
+        onClick={handleSignup}
+        disabled={loading}
+      >
+        {loading ? "Signing Up..." : "Sign Up"}
       </button>
 
       <div className="divider">
         <span>OR</span>
       </div>
 
-      <button className="google-btn" onClick={handleGoogleSignup}>
+      <button 
+        className="google-btn" 
+        onClick={handleGoogleSignup}
+        disabled={loading}
+      >
         <img
           src="https://developers.google.com/identity/images/g-logo.png"
           alt="Google"
@@ -251,8 +259,11 @@ export default function Signup({ onSwitch }) {
 
       <p className="switch">
         Already have an account?{" "}
-        <span onClick={onSwitch}>Login</span>
+        <span onClick={onSwitch} style={{ cursor: "pointer", color: "#0066ff" }}>
+          Login
+        </span>
       </p>
     </div>
   );
 }
+

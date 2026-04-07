@@ -5,6 +5,9 @@ const sequelize = require("./db/database");
 const campaignRoutes = require("./routes/campaign.routes");
 
 const app = express();
+const aiRoutes = require("./ai/ai.routes");
+
+app.use("/api/ai", aiRoutes);
 
 app.use(express.json());
 app.use("/api", campaignRoutes);

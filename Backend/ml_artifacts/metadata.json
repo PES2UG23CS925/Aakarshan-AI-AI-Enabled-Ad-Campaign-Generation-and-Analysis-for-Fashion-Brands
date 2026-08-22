@@ -1,0 +1,192 @@
+{
+  "cat_features": [
+    "platform",
+    "day_of_week",
+    "sentiment_label",
+    "emotion_type",
+    "topic_category",
+    "campaign_phase",
+    "language"
+  ],
+  "enc_features": [
+    "platform_enc",
+    "day_of_week_enc",
+    "sentiment_label_enc",
+    "emotion_type_enc",
+    "topic_category_enc",
+    "campaign_phase_enc",
+    "language_enc"
+  ],
+  "all_features": [
+    "sentiment_score",
+    "toxicity_score",
+    "hashtag_count",
+    "mention_count",
+    "keyword_count",
+    "text_length",
+    "has_mention",
+    "user_past_sentiment_avg",
+    "user_engagement_growth",
+    "buzz_change_rate",
+    "log_likes",
+    "log_shares",
+    "log_comments",
+    "log_impressions",
+    "like_share_ratio",
+    "platform_enc",
+    "day_of_week_enc",
+    "sentiment_label_enc",
+    "emotion_type_enc",
+    "topic_category_enc",
+    "campaign_phase_enc",
+    "language_enc"
+  ],
+  "num_features": [
+    "sentiment_score",
+    "toxicity_score",
+    "hashtag_count",
+    "mention_count",
+    "keyword_count",
+    "text_length",
+    "has_mention",
+    "user_past_sentiment_avg",
+    "user_engagement_growth",
+    "buzz_change_rate",
+    "log_likes",
+    "log_shares",
+    "log_comments",
+    "log_impressions",
+    "like_share_ratio"
+  ],
+  "classifier_classes": [
+    "High",
+    "Low",
+    "Medium",
+    "Viral"
+  ],
+  "feature_importances": {
+    "sentiment_score": 0.022811709299928203,
+    "toxicity_score": 0.023530301424535546,
+    "hashtag_count": 0.006023611844369892,
+    "mention_count": 0.00588319194281067,
+    "keyword_count": 0.006251978125683082,
+    "text_length": 0.02146088185996453,
+    "has_mention": 0.0027054775916869507,
+    "user_past_sentiment_avg": 0.023128783847578296,
+    "user_engagement_growth": 0.023738233047603446,
+    "buzz_change_rate": 0.024267871172066538,
+    "log_likes": 0.15564432297967998,
+    "log_shares": 0.058886625120903834,
+    "log_comments": 0.031406670182557724,
+    "log_impressions": 0.4651018735098456,
+    "like_share_ratio": 0.06429871799739535,
+    "platform_enc": 0.009436142850212444,
+    "day_of_week_enc": 0.011277330194687915,
+    "sentiment_label_enc": 0.004513992349838062,
+    "emotion_type_enc": 0.009548809865272278,
+    "topic_category_enc": 0.010465125097233852,
+    "campaign_phase_enc": 0.006360704221537512,
+    "language_enc": 0.013257645474608261
+  },
+  "platform_stats": {
+    "avg_perf": {
+      "Facebook": 50.03,
+      "Instagram": 50.25,
+      "Reddit": 50.59,
+      "Twitter": 49.43,
+      "YouTube": 49.73
+    },
+    "count": {
+      "YouTube": 2436,
+      "Facebook": 2431,
+      "Twitter": 2406,
+      "Reddit": 2372,
+      "Instagram": 2355
+    }
+  },
+  "sentiment_stats": {
+    "avg_score": {
+      "Negative": 50.53,
+      "Neutral": 49.19,
+      "Positive": 49.86
+    },
+    "count": {
+      "Negative": 4854,
+      "Positive": 4839,
+      "Neutral": 2307
+    }
+  },
+  "phase_stats": {
+    "avg_score": {
+      "Launch": 49.75,
+      "Post-Launch": 50.1,
+      "Pre-Launch": 50.16
+    },
+    "count": {
+      "Pre-Launch": 4006,
+      "Launch": 4004,
+      "Post-Launch": 3990
+    }
+  },
+  "emotion_stats": {
+    "avg_score": {
+      "Angry": 49.1,
+      "Confused": 49.19,
+      "Excited": 50.65,
+      "Happy": 49.9,
+      "Sad": 51.09
+    },
+    "count": {
+      "Sad": 2504,
+      "Excited": 2436,
+      "Confused": 2393,
+      "Happy": 2350,
+      "Angry": 2317
+    }
+  },
+  "day_stats": {
+    "avg_score": {
+      "Friday": 49.73,
+      "Monday": 49.44,
+      "Saturday": 50.03,
+      "Sunday": 49.54,
+      "Thursday": 50.56,
+      "Tuesday": 50.65,
+      "Wednesday": 50.09
+    },
+    "count": {
+      "Wednesday": 1771,
+      "Friday": 1723,
+      "Monday": 1720,
+      "Thursday": 1718,
+      "Sunday": 1716,
+      "Tuesday": 1677,
+      "Saturday": 1675
+    }
+  },
+  "topic_stats": {
+    "avg_score": {
+      "Delivery": 50.02,
+      "Marketing": 49.33,
+      "Pricing": 48.96,
+      "Product": 51.49,
+      "Returns": 50.39,
+      "Support": 49.93
+    },
+    "count": {
+      "Pricing": 2046,
+      "Marketing": 2043,
+      "Delivery": 2036,
+      "Returns": 1991,
+      "Support": 1947,
+      "Product": 1937
+    }
+  },
+  "model_metrics": {
+    "classifier_accuracy": 0.89875,
+    "regressor_mae": 1.4600161435862316,
+    "regressor_r2": 0.9940811357198897,
+    "training_rows": 9600,
+    "test_rows": 2400
+  }
+}

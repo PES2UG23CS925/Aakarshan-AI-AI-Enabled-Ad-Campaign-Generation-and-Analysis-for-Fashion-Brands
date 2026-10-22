@@ -1,0 +1,53 @@
+{
+  "trained_rows_after_cleaning": 11837,
+  "rows_dropped_impossible": 163,
+  "leakage_audit": {
+    "engagement_rate_equals_formula_max_abs_diff": 9.999999999843467e-06,
+    "finding": "old RF used formula inputs as features -> inflated accuracy; removed"
+  },
+  "sentiment": {
+    "dataset_holdout": {
+      "accuracy": 0.9320101351351351,
+      "macro_f1": 0.9261030050384328,
+      "majority_baseline": 0.4045608108108108,
+      "n_test": 2368
+    },
+    "fashion_comments": {
+      "accuracy": 0.7272727272727273,
+      "macro_f1": 0.7142857142857143,
+      "majority_baseline": 0.36363636363636365,
+      "n_test": 22,
+      "labels": [
+        "Negative",
+        "Neutral",
+        "Positive"
+      ],
+      "confusion_matrix": [
+        [
+          8,
+          0,
+          0
+        ],
+        [
+          2,
+          3,
+          1
+        ],
+        [
+          3,
+          0,
+          5
+        ]
+      ]
+    },
+    "note": "dataset text is templated/synthetic; the fashion-comment set is the more realistic estimate"
+  },
+  "prelaunch_experiment": {
+    "model": "RandomForestRegressor",
+    "target": "log1p(engagement_rate)",
+    "cv_r2_mean": -0.006070959530795328,
+    "cv_r2_std": 0.0031460239468060433,
+    "baseline_r2": 0.0,
+    "verdict": "no learnable signal: content/timing features do not predict engagement in this dataset, so no pre-launch prediction is shown to users"
+  }
+}

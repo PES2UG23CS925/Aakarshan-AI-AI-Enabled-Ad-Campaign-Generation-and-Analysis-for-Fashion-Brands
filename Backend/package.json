@@ -8,7 +8,7 @@
     "dev": "nodemon server.js",
     "train": "python ml_artifacts/train.py",
     "test:ml": "python ml_artifacts/test_ml.py",
-    "test:api": "node tests/integration.js && node tests/simulate_traffic.test.js && node tests/trends_and_images.test.js",
+    "test:api": "node tests/integration.js && node tests/simulate_traffic.test.js && node tests/trends_and_images.test.js && node tests/login_isolation.test.js",
     "demo:seed": "node scripts/simulate_demo_traffic.js"
   },
   "dependencies": {

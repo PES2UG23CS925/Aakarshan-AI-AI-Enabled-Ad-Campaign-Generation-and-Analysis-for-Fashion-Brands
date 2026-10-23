@@ -29,7 +29,9 @@ router.post("/register", async (req, res) => {
 router.post("/login", async (req, res) => {
   try {
     const { email, password } = req.body;
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    // Sign in with a separate throw-away client so the shared service-role client keeps its role
+    const authClient = typeof supabase.createAuthClient === "function" ? supabase.createAuthClient() : supabase;
+    const { data, error } = await authClient.auth.signInWithPassword({ email, password });
     if (error) return res.status(400).json({ message: error.message });
 
     const { data: profile } = await supabase

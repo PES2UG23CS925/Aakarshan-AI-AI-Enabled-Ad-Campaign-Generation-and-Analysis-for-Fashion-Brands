@@ -14,3 +14,10 @@
 ## Smoke test
 Register > Generate (3 images) > share link in incognito > like/click > Report page updates > A/B test.
 Note: Render free tier sleeps after inactivity; open the health URL a minute before a demo.
+
+## Final-release additions (v5.1)
+* **Fresh Supabase project?** Run `supabase_migration_0_base_schema.sql` first (it creates `users`, `campaigns` and the public `campaign-images` bucket), then the other three migrations in order.
+* **Admin access:** after registering, run `update public.users set role = 'admin' where email = 'you@example.com';` in the SQL editor.
+* **Local full stack:** `docker compose up --build` (see `docker-compose.yml`). The frontend image bakes in the three `VITE_*` values at build time.
+* **CI:** `.github/workflows/ci.yml` retrains the model, runs the ML and API tests, builds the frontend and uploads the evaluation figures.
+* **Keys:** rotate the Supabase service-role key, Groq key and Pollinations key if they were ever stored in a shared file or repository.

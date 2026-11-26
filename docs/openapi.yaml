@@ -1,0 +1,419 @@
+openapi: 3.0.3
+info:
+  title: Aakarshan AI API
+  version: 5.1.0
+  description: AI-enabled ad campaign generation and analysis for fashion brands. Send the Supabase access token as a Bearer
+    token.
+servers:
+- url: http://localhost:5000
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+paths:
+  /api/auth/register:
+    post:
+      summary: Create an account
+      tags:
+      - auth
+      responses:
+        '200':
+          description: OK
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                fullName: &id001
+                  type: string
+                email: *id001
+                password:
+                  type: string
+                  minLength: 8
+  /api/auth/login:
+    post:
+      summary: Sign in; returns access and refresh tokens
+      tags:
+      - auth
+      responses:
+        '200':
+          description: OK
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email: *id001
+                password: *id001
+  /api/auth/me:
+    get:
+      summary: Current profile and role
+      tags:
+      - auth
+      responses:
+        '200':
+          description: OK
+        '401':
+          description: Missing or invalid token
+      security: &id002
+      - bearerAuth: []
+  /api/campaign/generate:
+    post:
+      summary: Generate copy and three composed images (20 per hour per IP)
+      tags:
+      - campaign
+      responses:
+        '200':
+          description: OK
+        '401':
+          description: Missing or invalid token
+      security: *id002
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                brandName: *id001
+                category: *id001
+                audience: *id001
+                platform: *id001
+                prompt: *id001
+  /api/campaign:
+    get:
+      summary: List my campaigns, newest first
+      tags:
+      - campaign
+      responses:
+        '200':
+          description: OK
+        '401':
+          description: Missing or invalid token
+      security: *id002
+  /api/campaign/{id}:
+    get:
+      summary: One campaign
+      tags:
+      - campaign
+      responses:
+        '200':
+          description: OK
+        '401':
+          description: Missing or invalid token
+      security: *id002
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+    delete:
+      summary: Delete my campaign
+      tags:
+      - campaign
+      responses:
+        '200':
+          description: OK
+        '401':
+          description: Missing or invalid token
+      security: *id002
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+  /api/campaign/{id}/select-image:
+    post:
+      summary: Choose the final image from the variants
+      tags:
+      - campaign
+      responses:
+        '200':
+          description: OK
+        '401':
+          description: Missing or invalid token
+      security: *id002
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                imageUrl: *id001
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+  /api/campaign/{id}/start-ab:
+    post:
+      summary: Start an A/B(/C) test between 2-3 stored images
+      tags:
+      - campaign
+      responses:
+        '200':
+          description: OK
+        '401':
+          description: Missing or invalid token
+      security: *id002
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                variants:
+                  type: array
+                  items: *id001
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+  /api/campaign/public/{id}:
+    get:
+      summary: Public ad payload for a visitor (stable variant per visitor id)
+      tags:
+      - campaign
+      responses:
+        '200':
+          description: OK
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: visitor
+        in: query
+        schema: *id001
+  /api/campaign/public/{id}/event:
+    post:
+      summary: Record one viewer action (view, like, share, comment, click); de-duplicated server-side
+      tags:
+      - campaign
+      responses:
+        '200':
+          description: OK
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                type:
+                  type: string
+                  enum:
+                  - view
+                  - like
+                  - share
+                  - comment
+                  - click
+                visitorId: *id001
+                text: *id001
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+  /api/performance/analyze/{campaignId}:
+    post:
+      summary: Score a campaign from its real counters and comments
+      tags:
+      - performance
+      responses:
+        '200':
+          description: OK
+        '401':
+          description: Missing or invalid token
+      security: *id002
+      parameters:
+      - name: campaignId
+        in: path
+        required: true
+        schema:
+          type: string
+  /api/performance/timeline/{campaignId}:
+    get:
+      summary: Daily counts for charts (days=1-60)
+      tags:
+      - performance
+      responses:
+        '200':
+          description: OK
+        '401':
+          description: Missing or invalid token
+      security: *id002
+      parameters:
+      - name: campaignId
+        in: path
+        required: true
+        schema:
+          type: string
+  /api/performance/ab/{campaignId}:
+    get:
+      summary: Bayesian A/B comparison of published variants
+      tags:
+      - performance
+      responses:
+        '200':
+          description: OK
+        '401':
+          description: Missing or invalid token
+      security: *id002
+      parameters:
+      - name: campaignId
+        in: path
+        required: true
+        schema:
+          type: string
+  /api/performance/report/{campaignId}:
+    get:
+      summary: Downloadable report (format=csv|json, days=1-60)
+      tags:
+      - performance
+      responses:
+        '200':
+          description: OK
+        '401':
+          description: Missing or invalid token
+      security: *id002
+      parameters:
+      - name: campaignId
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: format
+        in: query
+        schema:
+          type: string
+          enum:
+          - csv
+          - json
+      - name: days
+        in: query
+        schema:
+          type: integer
+  /api/performance/dashboard:
+    get:
+      summary: Brand-level analytics and feedback loop
+      tags:
+      - performance
+      responses:
+        '200':
+          description: OK
+        '401':
+          description: Missing or invalid token
+      security: *id002
+  /api/performance/trends:
+    get:
+      summary: Live fashion-news trends with sentiment (category query)
+      tags:
+      - performance
+      responses:
+        '200':
+          description: OK
+        '401':
+          description: Missing or invalid token
+      security: *id002
+  /api/performance/insights:
+    get:
+      summary: Benchmark and honest model metrics
+      tags:
+      - performance
+      responses:
+        '200':
+          description: OK
+        '401':
+          description: Missing or invalid token
+      security: *id002
+  /api/admin/overview:
+    get:
+      summary: Platform totals (admin only; 403 otherwise)
+      tags:
+      - admin
+      responses:
+        '200':
+          description: OK
+        '401':
+          description: Missing or invalid token
+      security: *id002
+  /api/admin/users:
+    get:
+      summary: Accounts with campaign counts (admin only)
+      tags:
+      - admin
+      responses:
+        '200':
+          description: OK
+        '401':
+          description: Missing or invalid token
+      security: *id002
+  /api/admin/users/{id}/role:
+    patch:
+      summary: Set role user|admin; cannot change own role (admin only)
+      tags:
+      - admin
+      responses:
+        '200':
+          description: OK
+        '401':
+          description: Missing or invalid token
+      security: *id002
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                role:
+                  type: string
+                  enum:
+                  - user
+                  - admin
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+  /api/admin/logs:
+    get:
+      summary: Recent API requests, newest first (admin only)
+      tags:
+      - admin
+      responses:
+        '200':
+          description: OK
+        '401':
+          description: Missing or invalid token
+      security: *id002
+      parameters:
+      - name: limit
+        in: query
+        schema:
+          type: integer
+  /api/health:
+    get:
+      summary: Liveness probe
+      tags:
+      - system
+      responses:
+        '200':
+          description: OK

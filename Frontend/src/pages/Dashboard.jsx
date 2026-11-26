@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../services/api";
 
@@ -28,28 +28,37 @@ export default function Dashboard() {
   const navigate = useNavigate();
 
   const [notice, setNotice] = useState({});
+  const [loadError, setLoadError] = useState("");
+  const alive = useRef(true);   // don't touch state after leaving the page
 
   // silent=true refreshes in the background without the full-page spinner
   const load = async (silent = false) => {
     if (!silent) setLoading(true);
-    const [campRes, statRes] = await Promise.all([api.getCampaigns(), api.getPerfDashboard()]);
-    if (campRes.campaigns) setCampaigns(campRes.campaigns);
-    if (!statRes.message) setStats(statRes);
-    setLoading(false);
+    try {
+      const [campRes, statRes] = await Promise.all([api.getCampaigns(), api.getPerfDashboard()]);
+      if (!alive.current) return;
+      if (Array.isArray(campRes?.campaigns)) { setCampaigns(campRes.campaigns); setLoadError(""); }
+      else if (!silent) setLoadError(campRes?.message || "Could not load your campaigns.");
+      if (statRes && !statRes.message) setStats(statRes);
+    } catch (e) {
+      if (alive.current && !silent) setLoadError(e?.message || "Could not load your campaigns.");
+    }
+    if (alive.current) setLoading(false);
   };
 
   // Live numbers: refresh every 10s and whenever the tab regains focus
   useEffect(() => {
+    alive.current = true;
     load();
     const t = setInterval(() => { if (!document.hidden) load(true); }, 10000);
     const onVis = () => { if (!document.hidden) load(true); };
     document.addEventListener("visibilitychange", onVis);
-    return () => { clearInterval(t); document.removeEventListener("visibilitychange", onVis); };
+    return () => { alive.current = false; clearInterval(t); document.removeEventListener("visibilitychange", onVis); };
   }, []);
 
   const analyze = async (id) => {
     setAnalyzing(a => ({ ...a, [id]: true }));
-    const r = await api.analyzePerformance(id);
+    const r = (await api.analyzePerformance(id)) || {};
     setNotice(n => ({ ...n, [id]: r.message === "no_data" ? "No views yet — share the link first." : (r.performance_score === undefined ? (r.detail || r.message || "Scoring failed") : "") }));
     await load(true);
     setAnalyzing(a => ({ ...a, [id]: false }));
@@ -93,6 +102,13 @@ export default function Dashboard() {
           </button>
         </div>
 
+        {loadError && (
+          <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl px-4 py-3 mb-6 flex items-center justify-between gap-3">
+            <span>{loadError}</span>
+            <button onClick={() => load()} className="border border-red-200 bg-white px-3 py-1 rounded-lg text-xs">Retry</button>
+          </div>
+        )}
+
         {/* Stats */}
         {stats && (
           <>
@@ -102,7 +118,7 @@ export default function Dashboard() {
             <StatCard label="Views" value={(stats.total_views || 0).toLocaleString()} />
             <StatCard label="Likes" value={(stats.total_likes || 0).toLocaleString()} />
             <StatCard label="Shares" value={(stats.total_shares || 0).toLocaleString()} />
-            <StatCard label="CTR" value={`${((stats.overall_ctr || 0) * 100).toFixed(1)}%`} />
+            <StatCard label="CTR" value={`${Math.min(100, (stats.overall_ctr || 0) * 100).toFixed(1)}%`} />
           </div>
           {stats.insights?.length > 0 && (
             <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm mb-8">

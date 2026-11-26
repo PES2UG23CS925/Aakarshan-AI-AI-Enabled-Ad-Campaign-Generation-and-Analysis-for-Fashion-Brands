@@ -1,6 +1,7 @@
 const express = require("express");
 const router  = express.Router();
 const supabase = require("../supabaseClient");
+const auth = require("../middleware/authMiddleware");
 
 router.post("/register", async (req, res) => {
   try {
@@ -29,9 +30,7 @@ router.post("/register", async (req, res) => {
 router.post("/login", async (req, res) => {
   try {
     const { email, password } = req.body;
-    // Sign in with a separate throw-away client so the shared service-role client keeps its role
-    const authClient = typeof supabase.createAuthClient === "function" ? supabase.createAuthClient() : supabase;
-    const { data, error } = await authClient.auth.signInWithPassword({ email, password });
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) return res.status(400).json({ message: error.message });
 
     const { data: profile } = await supabase
@@ -46,6 +45,12 @@ router.post("/login", async (req, res) => {
   } catch (err) {
     res.status(500).json({ message: "Server error" });
   }
+});
+
+// GET /api/auth/me - the signed-in user's profile and role (the UI uses it to show the Admin tab)
+router.get("/me", auth, async (req, res) => {
+  const { data } = await supabase.from("users").select("id, full_name, email, role").eq("id", req.user.id).single();
+  res.json({ user: data ? { ...data, role: data.role || "user" } : { id: req.user.id, email: req.user.email, role: "user" } });
 });
 
 module.exports = router;

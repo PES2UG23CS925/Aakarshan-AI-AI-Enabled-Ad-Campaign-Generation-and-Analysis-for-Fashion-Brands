@@ -1,6 +1,7 @@
 {
   "name": "akarshan-ai-backend",
-  "version": "5.0.0",
+  "version": "5.2.0",
+  "engines": { "node": ">=18" },
   "description": "AI-powered ad generation and performance analytics",
   "main": "server.js",
   "scripts": {
@@ -8,8 +9,9 @@
     "dev": "nodemon server.js",
     "train": "python ml_artifacts/train.py",
     "test:ml": "python ml_artifacts/test_ml.py",
-    "test:api": "node tests/integration.js && node tests/simulate_traffic.test.js && node tests/trends_and_images.test.js && node tests/login_isolation.test.js",
-    "demo:seed": "node scripts/simulate_demo_traffic.js"
+    "test:api": "node tests/integration.js && node tests/simulate_traffic.test.js && node tests/trends_and_images.test.js && node tests/admin_report.test.js",
+    "demo:seed": "node scripts/simulate_demo_traffic.js",
+    "evaluate": "python ml_artifacts/evaluate.py"
   },
   "dependencies": {
     "@napi-rs/canvas": "^0.1.44",

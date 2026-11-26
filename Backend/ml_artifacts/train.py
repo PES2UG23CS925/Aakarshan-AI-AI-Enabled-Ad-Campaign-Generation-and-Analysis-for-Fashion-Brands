@@ -78,6 +78,26 @@ FASHION_TEST = [
 ]
 
 
+def make_sentiment_pipeline():
+    """TF-IDF (1-2 grams) + class-balanced Logistic Regression. Shared with evaluate.py."""
+    return Pipeline([("tfidf", TfidfVectorizer(ngram_range=(1, 2), min_df=2, sublinear_tf=True)),
+                     ("lr", LogisticRegression(max_iter=2000, C=3.0, class_weight="balanced"))])
+
+
+PRELAUNCH_CATEGORICAL = ["platform", "day_of_week", "sentiment_label", "emotion_type", "topic_category", "campaign_phase", "language"]
+PRELAUNCH_NUMERIC = ["sentiment_score", "toxicity_score", "user_past_sentiment_avg", "user_engagement_growth", "buzz_change_rate"]
+
+
+def prelaunch_matrix(df):
+    """Content/timing features known BEFORE launch (no likes/shares/comments/impressions). Shared with evaluate.py."""
+    Xp = pd.get_dummies(df[PRELAUNCH_CATEGORICAL].fillna("Unknown").astype(str))
+    for c in PRELAUNCH_NUMERIC:
+        Xp[c] = pd.to_numeric(df[c], errors="coerce").fillna(0)
+    Xp["hashtag_count"] = df["hashtags"].fillna("").map(lambda s: len([h for h in s.split(",") if h.strip()]))
+    Xp["text_length"] = df["text_content"].fillna("").str.len()
+    return Xp, np.log1p(df["er"].values)
+
+
 def main():
     print("Loading dataset...")
     df = pd.read_csv(os.path.join(HERE, "dataset.csv"))
@@ -116,9 +136,7 @@ def main():
     X_fit = pd.concat([Xtr, pd.Series(fx_tr * REP)], ignore_index=True)
     y_fit = pd.concat([ytr, pd.Series(fy_tr * REP)], ignore_index=True)
 
-    def make():
-        return Pipeline([("tfidf", TfidfVectorizer(ngram_range=(1, 2), min_df=2, sublinear_tf=True)),
-                         ("lr", LogisticRegression(max_iter=2000, C=3.0, class_weight="balanced"))])
+    make = make_sentiment_pipeline
     sent = make().fit(X_fit, y_fit)
     p_ds = sent.predict(Xte); p_fa = sent.predict(fx_te)
     majority = float((yte == yte.mode()[0]).mean())
@@ -136,13 +154,7 @@ def main():
     joblib.dump(make().fit(X_all, y_all), os.path.join(HERE, "sentiment.pkl"))
 
     # 4. honest pre-launch experiment
-    cat = ["platform", "day_of_week", "sentiment_label", "emotion_type", "topic_category", "campaign_phase", "language"]
-    Xp = pd.get_dummies(df[cat].fillna("Unknown").astype(str))
-    for c in ["sentiment_score", "toxicity_score", "user_past_sentiment_avg", "user_engagement_growth", "buzz_change_rate"]:
-        Xp[c] = pd.to_numeric(df[c], errors="coerce").fillna(0)
-    Xp["hashtag_count"] = df["hashtags"].fillna("").map(lambda s: len([h for h in s.split(",") if h.strip()]))
-    Xp["text_length"] = df["text_content"].fillna("").str.len()
-    y = np.log1p(df["er"].values)
+    Xp, y = prelaunch_matrix(df)
     cv = cross_val_score(RandomForestRegressor(200, max_depth=8, min_samples_leaf=10, n_jobs=-1, random_state=SEED),
                          Xp, y, cv=KFold(5, shuffle=True, random_state=SEED), scoring="r2")
     verdict = ("no learnable signal: content/timing features do not predict engagement in this dataset, "

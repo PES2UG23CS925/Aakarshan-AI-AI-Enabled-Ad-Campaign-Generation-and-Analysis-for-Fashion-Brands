@@ -1,6 +1,6 @@
 const Module = require("module");
 const B = require("path").join(__dirname, "..") + "/";
-process.env.SUPABASE_URL="https://proj.supabase.co"; process.env.GROQ_API_KEY="k";
+process.env.SUPABASE_URL="https://proj.supabase.co"; process.env.SUPABASE_SERVICE_ROLE_KEY = "test-key"; process.env.GROQ_API_KEY="k";
 const db={campaigns:[{id:"c1",user_id:"u1",platform:"Instagram",category:"c",brand_name:"B",headline:"h",ad_copy:"a",cta:"c",hashtags:[],image_url:"https://proj.supabase.co/a.jpg",variants:["https://proj.supabase.co/a.jpg","https://proj.supabase.co/b.jpg"],views:0,likes:0,shares:0,comments:0,clicks:0,created_at:new Date().toISOString()}],ad_events:[]};
 function q(table){let f=[],cols=null,single=false;
  const o={select(c){if(c&&c!=="*")cols=c.split(",").map(x=>x.trim());return o},eq(k,v){f.push(r=>r[k]==v);return o},single(){single=true;return o},

@@ -176,7 +176,11 @@ router.get("/public/:id", async (req, res) => {
       return res.status(400).json({ message: "Invalid preview variant" });
     }
 
-    const idx = variantFor(req.query.visitor || "", vs.length);
+    // Pinned link (?v=N): this exact link always shows variant N and its stats count toward N,
+    // so each variant can be shared on its own. Without it, visitors are split by their visitor id.
+    const pinned = parseInt(req.query.v, 10);
+    const idx = Number.isInteger(pinned) && pinned >= 0 && pinned < vs.length
+      ? pinned : variantFor(req.query.visitor || "", vs.length);
     if (idx !== null) pub.image_url = vs[idx];
     res.set("Cache-Control", "no-store");
     res.json({ campaign: pub, variant: idx });
@@ -191,7 +195,7 @@ router.get("/public/:id", async (req, res) => {
 const EVENT_TYPES = ["view", "like", "share", "comment", "click"];
 router.post("/public/:id/event", async (req, res) => {
   try {
-    const { type, visitorId, text } = req.body || {};
+    const { type, visitorId, text, variant: pinnedVariant } = req.body || {};
     if (!EVENT_TYPES.includes(type)) return res.status(400).json({ message: "Invalid event type" });
     if (typeof visitorId !== "string" || visitorId.length < 8 || visitorId.length > 64)
       return res.status(400).json({ message: "Invalid visitorId" });
@@ -199,7 +203,10 @@ router.post("/public/:id/event", async (req, res) => {
     // variant is computed here from the visitor id (never trusted from the client)
     const { data: camp } = await supabase.from("campaigns").select("variants").eq("id", req.params.id).single();
     if (!camp) return res.status(404).json({ message: "not_found" });
-    const variant = variantFor(visitorId, Array.isArray(camp.variants) ? camp.variants.length : 0);
+    const nVariants = Array.isArray(camp.variants) ? camp.variants.length : 0;
+    // A pinned variant link may name its variant (validated against the real range); otherwise hash the visitor.
+    const variant = Number.isInteger(pinnedVariant) && pinnedVariant >= 0 && pinnedVariant < nVariants
+      ? pinnedVariant : variantFor(visitorId, nVariants);
 
     const { data, error } = await supabase.rpc("record_ad_event", {
       p_campaign_id: String(req.params.id),

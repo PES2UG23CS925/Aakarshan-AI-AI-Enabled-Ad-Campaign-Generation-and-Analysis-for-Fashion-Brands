@@ -2,7 +2,7 @@
 const Module = require("module");
 const path = require("path");
 const B = path.join(__dirname, "..") + "/";
-process.env.SUPABASE_URL = "https://proj.supabase.co";
+process.env.SUPABASE_URL = "https://proj.supabase.co"; process.env.SUPABASE_SERVICE_ROLE_KEY = "test-key";
 
 let pass = 0, fail = 0;
 const ok = (n, c) => { console.log((c ? "PASS " : "FAIL ") + n); c ? pass++ : fail++; };

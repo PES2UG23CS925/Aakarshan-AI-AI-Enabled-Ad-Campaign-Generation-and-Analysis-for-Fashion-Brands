@@ -1,0 +1,2 @@
+-r requirements.txt
+matplotlib>=3.8      # only for ml_artifacts/evaluate.py (figures)

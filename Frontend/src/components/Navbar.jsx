@@ -1,9 +1,13 @@
 import { Link, useNavigate, useLocation } from "react-router-dom";
+import { useEffect, useState } from "react";
 import { supabase } from "../supabaseClient";
+import { api } from "../services/api";
 
 export default function Navbar() {
   const navigate = useNavigate();
   const { pathname } = useLocation();
+  const [isAdmin, setIsAdmin] = useState(false);
+  useEffect(() => { api.me().then(r => setIsAdmin(r?.user?.role === "admin")).catch(() => {}); }, []);
 
   const logout = async () => {
     await supabase.auth.signOut();
@@ -35,6 +39,7 @@ export default function Navbar() {
       <div className="flex items-center gap-1">
         {navLink("/", "Campaigns")}
         {navLink("/generate", "Create Ad")}
+        {isAdmin && navLink("/admin", "Admin")}
       </div>
 
       <button

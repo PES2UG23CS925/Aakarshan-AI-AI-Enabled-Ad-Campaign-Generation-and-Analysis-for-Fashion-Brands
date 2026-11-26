@@ -101,3 +101,33 @@ a real deployment (which should set `NODE_ENV=production`) keeps the strict limi
 - **Pollinations fix:** moved to `gen.pollinations.ai` with Bearer key; clear errors for 401/402.
 - **Deployment:** `Backend/Dockerfile`, `render.yaml`, `Frontend/vercel.json`; see DEPLOYMENT.md.
 - **Tests:** `npm run test:api` now also runs `tests/trends_and_images.test.js` (18 checks). Total 15 ML + 50 API checks.
+
+
+---
+## Version 5.1.0 - final release
+New in this release (all covered by tests; run `npm run test:api` and `npm run test:ml` in `Backend/`):
+
+1. **Role-based admin console.** `users.role` (`user` | `admin`, migration 3), `middleware/adminMiddleware.js`, `routes/admin.js` (`/overview`, `/users`, `PATCH /users/:id/role`, `/logs`) and `Frontend/src/pages/AdminPage.jsx`. An admin cannot demote themselves.
+2. **Request log buffer.** `middleware/requestLogger.js` and `services/logBuffer.js` keep the last 300 requests (method, path without query string, status, duration) in memory for the Logs tab.
+3. **Report export (FR-14).** `GET /api/performance/report/:id?format=csv|json` and a **Download report (CSV)** button on the performance page. CSV cells that start with `=`, `+`, `-` or `@` are neutralised against spreadsheet formula injection.
+4. **`GET /api/auth/me`** returns the profile and role; the navigation uses it to show the Admin link.
+5. **Base schema** (`supabase_migration_0_base_schema.sql`) so a new Supabase project can be set up from the repository alone. All four migrations were run on a clean PostgreSQL 16 and re-run to confirm they are idempotent; `record_ad_event` was exercised for duplicate handling, bad input and 60 concurrent visitors.
+6. **Evaluation script** `ml_artifacts/evaluate.py` regenerates every figure and number quoted in the report into `ml_artifacts/evaluation/`. `train.py` now exposes `make_sentiment_pipeline()` and `prelaunch_matrix()` for reuse (results unchanged).
+7. **Packaging and docs:** `docker-compose.yml`, `Frontend/Dockerfile` + `nginx.conf`, GitHub Actions CI, `README.md`, `docs/openapi.yaml`, `docs/ML_EVALUATION.md`; server banner and `/` endpoint now report the version from `package.json`.
+8. **Secrets:** the shipped archive no longer contains `Backend/env` or `Frontend/.env`. Create them from the `.env.example` files, and rotate any keys that were in the earlier archive.
+
+
+## v5.2.0 - report cleanup and production hardening
+- Performance report: removed "Engagement vs benchmark", "What's driving the score", "Audience sentiment" and "Last 14 days" cards.
+- A/B: every variant has its own tracked link (`/ad/<id>?v=N`); preview links (`&preview=1`) are not counted.
+- ML runs in one long-lived Python worker (fast reports); all rates are capped at 100%.
+- Server: fails fast on missing SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY, graceful SIGTERM shutdown, crash handlers, keep-alive tuned for load balancers.
+- Docker: backend runs as non-root with a HEALTHCHECK. nginx: gzip, no-cache index.html, Permissions-Policy.
+- Frontend: error boundary, network-safe API client, Dashboard retry banner.
+
+### Production checklist
+1. Run the four `supabase_migration*.sql` files in order in the Supabase SQL editor.
+2. Set env vars (see Backend/.env.example); set `NODE_ENV=production` and `ALLOWED_ORIGINS` to your frontend URL(s).
+3. Build the frontend with `VITE_API_URL`, `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`.
+4. Never commit `.env`; rotate any key that was ever shared.
+5. CI (`.github/workflows/ci.yml`) must be green before deploying.

@@ -39,12 +39,15 @@ function ScoreRing({ score }) {
   );
 }
 
+// Rates are shown as at most 100% (repeat comments/clicks can outnumber unique views).
+const pctRate = (r) => `${Math.min(100, Math.max(0, (Number(r) || 0) * 100)).toFixed(1)}%`;
 function Bar({ label, value, suffix = "%", color = "#0f172a" }) {
+  value = Math.min(100, Math.max(0, Number(value) || 0));
   return (
     <div>
       <div className="flex justify-between text-xs mb-1">
         <span className="text-slate-600">{label}</span>
-        <span className="text-slate-400">{value}{suffix}</span>
+        <span className="text-slate-400">{Math.round(value * 10) / 10}{suffix}</span>
       </div>
       <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
         <div className="h-full rounded-full transition-all duration-700" style={{ width: `${Math.min(100, value)}%`, backgroundColor: color }} />
@@ -53,41 +56,12 @@ function Bar({ label, value, suffix = "%", color = "#0f172a" }) {
   );
 }
 
-// Tiny dependency-free chart: views (bars) + likes (line) per day
-function TrendChart({ data }) {
-  const W = 560, H = 140, pad = 24;
-  const max = Math.max(1, ...data.map(d => Math.max(d.view, d.like + d.share + d.comment)));
-  const bw = (W - pad * 2) / data.length;
-  const y = v => H - pad - (v / max) * (H - pad * 2);
-  const pts = data.map((d, i) => `${pad + i * bw + bw / 2},${y(d.like + d.share + d.comment)}`).join(" ");
-  return (
-    <div>
-      <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto">
-        {data.map((d, i) => (
-          <g key={d.date}>
-            <rect x={pad + i * bw + bw * 0.2} y={y(d.view)} width={bw * 0.6} height={H - pad - y(d.view)} rx="2" fill="#cbd5e1" />
-            {(i % Math.ceil(data.length / 7) === 0) && (
-              <text x={pad + i * bw + bw / 2} y={H - 8} fontSize="9" textAnchor="middle" fill="#94a3b8">{d.date.slice(5)}</text>
-            )}
-          </g>
-        ))}
-        <polyline points={pts} fill="none" stroke="#0f172a" strokeWidth="2" strokeLinejoin="round" />
-        <text x={pad} y="12" fontSize="9" fill="#94a3b8">peak {max}</text>
-      </svg>
-      <div className="flex gap-4 text-xs text-slate-400 mt-1">
-        <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-slate-300" />Views / day</span>
-        <span className="flex items-center gap-1.5"><span className="w-2.5 h-0.5 bg-slate-900" />Engagements / day</span>
-      </div>
-    </div>
-  );
-}
-
 export default function PerformancePage() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const [downloading, setDownloading] = useState(false);
   const [report, setReport]     = useState(null);
   const [campaign, setCampaign] = useState(null);
-  const [timeline, setTimeline] = useState(null);
   const [ab, setAb]           = useState(null);
   const [picking, setPicking]   = useState(false);
   const [copiedVariant, setCopiedVariant] = useState(null);
@@ -106,11 +80,10 @@ export default function PerformancePage() {
       setCampaign(campRes.campaign);
       if ((campRes.campaign.views || 0) === 0) { setNoData(true); setReport(null); setLoading(false); return; }
       setNoData(false);
-      const [analysis, tl, abRes] = await Promise.all([api.analyzePerformance(id), api.getTimeline(id), api.getAbTest(id)]);
+      const [analysis, abRes] = await Promise.all([api.analyzePerformance(id), api.getAbTest(id)]);
       setAb(abRes.active ? abRes : null);
       if (analysis.performance_score === undefined) setErrMsg(analysis.detail || analysis.message || "Analysis failed");
       else { setReport(analysis); setErrMsg(""); }
-      if (tl.timeline) setTimeline(tl);
       setUpdatedAt(new Date());
     } catch (e) { setErrMsg(e.message); }
     setLoading(false);
@@ -125,10 +98,13 @@ export default function PerformancePage() {
 
   const rerun = async () => { setRerunning(true); await load(true); setRerunning(false); };
 
-  const copyVariantLink = (idx) => {
-    const url = `${window.location.origin}/ad/${id}?preview=1&v=${idx}`;
+  // kind "tracked": a pinned link — always shows variant idx and its views/likes count toward that variant.
+  // kind "preview": shows variant idx but records nothing (for reviewers).
+  const copyVariantLink = (idx, kind = "tracked") => {
+    const url = `${window.location.origin}/ad/${id}?v=${idx}${kind === "preview" ? "&preview=1" : ""}`;
     navigator.clipboard.writeText(url);
-    setCopiedVariant(idx); setTimeout(() => setCopiedVariant(null), 2000);
+    const k = `${kind}-${idx}`;
+    setCopiedVariant(k); setTimeout(() => setCopiedVariant(null), 2000);
   };
 
   const useWinner = async (url) => {
@@ -181,6 +157,20 @@ export default function PerformancePage() {
                 {copied ? "Copied!" : "Copy"}
               </button>
             </div>
+            {campaign?.variants?.length > 1 && (
+              <div className="mt-4 text-left">
+                <p className="text-slate-600 text-sm font-medium mb-1">Or share one variant per link</p>
+                <p className="text-slate-400 text-xs mb-2">Each link always shows its own variant and counts toward that variant's stats. The main link above splits visitors automatically.</p>
+                <div className="flex gap-2 flex-wrap">
+                  {campaign.variants.map((_, i) => (
+                    <button key={i} onClick={() => copyVariantLink(i, "tracked")}
+                      className={`px-3 py-1.5 rounded-lg text-xs border transition ${copiedVariant === `tracked-${i}` ? "bg-emerald-50 border-emerald-200 text-emerald-700" : "border-slate-200 text-slate-700 hover:border-slate-900"}`}>
+                      {copiedVariant === `tracked-${i}` ? "Copied!" : `Copy variant ${i + 1} link`}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -199,9 +189,13 @@ export default function PerformancePage() {
   );
 
   const tierStyle = TIER_STYLES[report.tier] || {};
-  const bm = report.benchmark || {};
-  const sent = report.sentiment || {};
-  const sTotal = sent.analysed || 0;
+
+  const downloadReport = async () => {
+    setDownloading(true);
+    try { await api.downloadReport(id, "csv"); }
+    catch (e) { alert(e.message); }
+    finally { setDownloading(false); }
+  };
 
   return (
     <div className="min-h-screen bg-slate-50 px-6 py-8">
@@ -240,57 +234,6 @@ export default function PerformancePage() {
           </div>
         </div>
 
-        {/* Engagement vs benchmark */}
-        <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
-          <p className="text-slate-500 text-sm font-medium mb-4">Engagement vs benchmark ({bm.platform_used}, {bm.n_posts?.toLocaleString()} posts)</p>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-            <div><p className="text-2xl font-semibold text-slate-900">{(report.engagement_rate * 100).toFixed(1)}%</p><p className="text-slate-400 text-xs mt-0.5">Your engagement rate</p></div>
-            <div><p className="text-2xl font-semibold text-slate-400">{(bm.median_engagement_rate * 100).toFixed(1)}%</p><p className="text-slate-400 text-xs mt-0.5">Benchmark median</p></div>
-            <div>
-              <p className={`text-2xl font-semibold ${bm.vs_median_pct >= 0 ? "text-emerald-600" : "text-red-500"}`}>{bm.vs_median_pct >= 0 ? "+" : ""}{bm.vs_median_pct}%</p>
-              <p className="text-slate-400 text-xs mt-0.5">vs median</p>
-            </div>
-            <div><p className="text-2xl font-semibold text-slate-900">{(report.ctr * 100).toFixed(1)}%</p><p className="text-slate-400 text-xs mt-0.5">CTA click-through</p></div>
-          </div>
-        </div>
-
-        <div className="grid md:grid-cols-2 gap-4">
-          {/* Components */}
-          <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
-            <p className="text-slate-500 text-sm font-medium mb-1">What's driving the score</p>
-            <p className="text-slate-400 text-xs mb-4">Percentile of each action vs the benchmark</p>
-            <div className="space-y-3">
-              <Bar label="Likes" value={report.components.likes} suffix="th" />
-              <Bar label="Shares" value={report.components.shares} suffix="th" />
-              <Bar label="Comments" value={report.components.comments} suffix="th" />
-            </div>
-          </div>
-
-          {/* Sentiment */}
-          <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
-            <p className="text-slate-500 text-sm font-medium mb-1">Audience sentiment</p>
-            {sTotal === 0 ? (
-              <p className="text-slate-400 text-sm mt-3">No comments yet. Comments are classified Positive / Neutral / Negative by the sentiment model.</p>
-            ) : (
-              <>
-                <p className="text-slate-400 text-xs mb-4">{sTotal} comment{sTotal > 1 ? "s" : ""} analysed</p>
-                <div className="space-y-3">
-                  <Bar label="Positive" value={Math.round(sent.counts.Positive / sTotal * 100)} color="#10b981" />
-                  <Bar label="Neutral"  value={Math.round(sent.counts.Neutral  / sTotal * 100)} color="#94a3b8" />
-                  <Bar label="Negative" value={Math.round(sent.counts.Negative / sTotal * 100)} color="#ef4444" />
-                </div>
-                <div className="mt-4 space-y-1.5">
-                  {sent.samples.map((c, i) => (
-                    <p key={i} className="text-xs text-slate-500 truncate">
-                      <span className={c.label === "Positive" ? "text-emerald-600" : c.label === "Negative" ? "text-red-500" : "text-slate-400"}>● </span>{c.text}
-                    </p>
-                  ))}
-                </div>
-              </>
-            )}
-          </div>
-        </div>
-
         {/* A/B test */}
         {ab && (
           <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
@@ -308,33 +251,42 @@ export default function PerformancePage() {
                   <p className="text-sm font-medium text-slate-900 mb-2">Variant {v.index + 1}</p>
                   <div className="text-xs text-slate-500 space-y-0.5 mb-3">
                     <p>{v.views} views · {v.likes} likes · {v.shares} shares · {v.comments} comments</p>
-                    <p>Engagement {(v.engagement_rate * 100).toFixed(1)}% · CTR {(v.ctr * 100).toFixed(1)}%</p>
+                    <p>Quality-adjusted engagement {pctRate(v.engagement_rate)} · CTR {pctRate(v.ctr)}</p>
                   </div>
                   <Bar label="Chance it's the best" value={v.prob_best} color={ab.leader === v.index ? "#10b981" : "#94a3b8"} />
+                  <div className="mt-3 border-t border-slate-100 pt-3">
+                    <p className="text-xs text-slate-500 mb-1.5">
+                      Comments ({v.comment_list?.length || 0})
+                      {v.comment_list?.length > 0 && (
+                        <span className="text-slate-400"> · <span className="text-emerald-600">{v.sentiment?.Positive || 0} positive</span> · {v.sentiment?.Neutral || 0} neutral · <span className="text-red-500">{v.sentiment?.Negative || 0} negative</span></span>
+                      )}
+                    </p>
+                    {v.comment_list?.length ? (
+                      <div className="max-h-48 overflow-y-auto space-y-1.5 pr-1">
+                        {v.comment_list.map((c, i) => (
+                          <p key={i} className="text-xs text-slate-600 break-words">
+                            <span className={c.label === "Positive" ? "text-emerald-600" : c.label === "Negative" ? "text-red-500" : "text-slate-400"} title={c.label}>● </span>{c.text}
+                          </p>
+                        ))}
+                      </div>
+                    ) : <p className="text-xs text-slate-400">No comments yet.</p>}
+                  </div>
                   <div className="flex gap-2 mt-3">
-                    <button onClick={() => copyVariantLink(v.index)}
-                      className={`flex-1 border text-xs py-1.5 rounded-lg transition ${copiedVariant === v.index ? "bg-emerald-50 border-emerald-200 text-emerald-700" : "border-slate-200 hover:border-slate-900 text-slate-700"}`}>
-                      {copiedVariant === v.index ? "Copied!" : "Preview link"}
+                    <button onClick={() => copyVariantLink(v.index, "tracked")}
+                      className={`flex-1 border text-xs py-1.5 rounded-lg transition ${copiedVariant === `tracked-${v.index}` ? "bg-emerald-50 border-emerald-200 text-emerald-700" : "border-slate-200 hover:border-slate-900 text-slate-700"}`}>
+                      {copiedVariant === `tracked-${v.index}` ? "Copied!" : "Copy link"}
                     </button>
                     <button onClick={() => useWinner(v.image_url)} disabled={picking}
                       className="flex-1 border border-slate-200 hover:border-slate-900 text-slate-700 text-xs py-1.5 rounded-lg transition disabled:opacity-50">
                       Use this
                     </button>
                   </div>
+                  <button onClick={() => copyVariantLink(v.index, "preview")} className="mt-2 w-full text-slate-400 hover:text-slate-700 text-xs transition">
+                    {copiedVariant === `preview-${v.index}` ? "Preview link copied" : "Copy preview link (not counted)"}
+                  </button>
                 </div>
               ))}
             </div>
-            <p className="text-slate-400 text-xs mt-3">
-              The real A/B link (below, "Copy & Share Ad Link") splits real visitors evenly between variants — that's how the test works. Use "Preview link" above to open one specific variant yourself or send it to reviewers; previews don't count toward the stats. Detecting a small difference needs roughly 1,000 real views per variant, so keep the real link circulating.
-            </p>
-          </div>
-        )}
-
-        {/* Trend */}
-        {timeline?.timeline && (
-          <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
-            <p className="text-slate-500 text-sm font-medium mb-3">Last 14 days</p>
-            <TrendChart data={timeline.timeline} />
           </div>
         )}
 
@@ -353,7 +305,6 @@ export default function PerformancePage() {
           </div>
         )}
 
-        <p className="text-slate-400 text-xs px-1">{report.method} Benchmark data is a public social-media engagement dataset, not fashion-specific.</p>
 
         <div className="flex flex-col sm:flex-row gap-3">
           <button onClick={copyLink} className={`flex-1 border py-3 rounded-xl text-sm font-medium transition ${copied ? "bg-emerald-50 border-emerald-200 text-emerald-700" : "border-slate-200 text-slate-700 hover:border-slate-400 hover:bg-slate-50"}`}>
@@ -361,6 +312,9 @@ export default function PerformancePage() {
           </button>
           <button onClick={rerun} disabled={rerunning} className="flex-1 border border-slate-200 text-slate-700 py-3 rounded-xl text-sm font-medium hover:bg-slate-50 transition disabled:opacity-50">
             {rerunning ? "Refreshing…" : "Refresh now"}
+          </button>
+          <button onClick={downloadReport} disabled={downloading} className="flex-1 border border-slate-200 text-slate-700 py-3 rounded-xl text-sm font-medium hover:bg-slate-50 transition disabled:opacity-50">
+            {downloading ? "Preparing…" : "Download report (CSV)"}
           </button>
           <button onClick={() => navigate("/generate")} className="flex-1 bg-slate-900 hover:bg-slate-800 text-white py-3 rounded-xl text-sm font-medium transition">
             Create New Campaign

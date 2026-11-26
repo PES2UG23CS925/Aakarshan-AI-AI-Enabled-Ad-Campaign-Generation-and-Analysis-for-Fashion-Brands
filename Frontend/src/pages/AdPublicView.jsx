@@ -11,7 +11,7 @@ function getVisitorId() {
     return v;
   } catch { return window.__vid || (window.__vid = `t-${Date.now()}-${Math.random().toString(36).slice(2)}`); }
 }
-const flagKey = (id, t) => `aakarshan_${t}_${id}`;
+const flagKey = (id, t) => `aakarshan_${t}_${id}`;   // id already includes the variant for pinned links
 const hasFlag = (id, t) => { try { return !!localStorage.getItem(flagKey(id, t)); } catch { return false; } };
 const setFlag = (id, t) => { try { localStorage.setItem(flagKey(id, t), "1"); } catch {} };
 
@@ -19,22 +19,27 @@ export default function AdPublicView() {
   const { id } = useParams();
   const params = new URLSearchParams(window.location.search);
   const isPreview = params.get("preview") === "1";
+  // ?v=N (without preview) is a tracked, pinned variant link: always shows variant N, stats count for N.
+  const vParam = params.get("v");
+  const pin = !isPreview && /^\d+$/.test(vParam || "") ? parseInt(vParam, 10) : null;
+  const fid = pin !== null ? `${id}_v${pin}` : id;
   const [campaign, setCampaign]   = useState(null);
   const [loading, setLoading]     = useState(true);
   const [notFound, setNotFound]   = useState(false);
-  const [liked, setLiked]         = useState(() => hasFlag(id, "like"));
-  const [shared, setShared]       = useState(() => hasFlag(id, "share"));
+  const [liked, setLiked]         = useState(() => hasFlag(fid, "like"));
+  const [shared, setShared]       = useState(() => hasFlag(fid, "share"));
   const [showComment, setShowComment] = useState(false);
   const [comment, setComment]     = useState("");
   const [toast, setToast]         = useState("");
   const viewedRef = useRef(false);
-  const visitor = useRef(getVisitorId()).current;
+  // Per-variant visitor id for pinned links, so opening link B after link A isn't swallowed by A's de-dupe window.
+  const visitor = useRef(getVisitorId() + (pin !== null ? `-v${pin}` : "")).current;
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const data = isPreview ? await api.getPublicAd(id, "", { preview: "1", v: params.get("v") }) : await api.getPublicAd(id, visitor);
+        const data = isPreview ? await api.getPublicAd(id, "", { preview: "1", v: params.get("v") }) : await api.getPublicAd(id, visitor, pin !== null ? { v: String(pin) } : {});
         if (cancelled) return;
         if (!data.campaign) { setNotFound(true); setLoading(false); return; }
         setCampaign(data.campaign);
@@ -44,7 +49,7 @@ export default function AdPublicView() {
         // Never record real events while previewing a specific variant
         if (!viewedRef.current && !isPreview) {
           viewedRef.current = true;
-          api.recordEvent(id, "view", visitor);
+          api.recordEvent(id, "view", visitor, undefined, pin ?? undefined);
         }
       } catch {
         if (!cancelled) { setNotFound(true); setLoading(false); }
@@ -57,29 +62,29 @@ export default function AdPublicView() {
 
   const like = async () => {
     if (liked || isPreview) return;
-    setLiked(true); setFlag(id, "like"); showToast("Liked!");
-    api.recordEvent(id, "like", visitor);
+    setLiked(true); setFlag(fid, "like"); showToast("Liked!");
+    api.recordEvent(id, "like", visitor, undefined, pin ?? undefined);
   };
 
   const share = async () => {
     if (isPreview) return;
-    const url = window.location.href;
+    const url = window.location.href;   // a pinned link shares itself, so the friend sees the same variant
     try {
       if (navigator.share) await navigator.share({ title: campaign?.headline, url });
       else { await navigator.clipboard?.writeText(url); showToast("Link copied!"); }
     } catch { return; }              // user cancelled the share sheet -> not a share
-    setShared(true); setFlag(id, "share");
-    api.recordEvent(id, "share", visitor);
+    setShared(true); setFlag(fid, "share");
+    api.recordEvent(id, "share", visitor, undefined, pin ?? undefined);
   };
 
   // CTA is a CLICK (used for CTR) — it no longer fakes a like.
-  const cta = () => { if (isPreview) return showToast("Preview mode — clicks aren't recorded here"); api.recordEvent(id, "click", visitor); showToast("Thanks for your interest!"); };
+  const cta = () => { if (isPreview) return showToast("Preview mode — clicks aren't recorded here"); api.recordEvent(id, "click", visitor, undefined, pin ?? undefined); showToast("Thanks for your interest!"); };
 
   const submitComment = async () => {
     if (isPreview) return;
     const text = comment.trim();
     if (!text) return;
-    const r = await api.recordEvent(id, "comment", visitor, text);
+    const r = await api.recordEvent(id, "comment", visitor, text, pin ?? undefined);
     showToast(r.counted ? "Comment posted!" : r.reason === "rate_limited" ? "Too many comments, try later" : "Couldn't post comment");
     if (r.counted) { setComment(""); setShowComment(false); }
   };

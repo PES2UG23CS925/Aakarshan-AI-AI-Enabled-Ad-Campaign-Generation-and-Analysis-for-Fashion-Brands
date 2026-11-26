@@ -1,30 +1,10 @@
 const express   = require("express");
 const router    = express.Router();
-const { spawn } = require("child_process");
-const path      = require("path");
 const supabase  = require("../supabaseClient");
 const auth      = require("../middleware/authMiddleware");
 const { getTrends } = require("../services/trendService");
 
-const SCRIPT = path.join(__dirname, "../ml_artifacts/inference.py");
-// Windows usually has `python`, not `python3`. Override with PYTHON_BIN in .env if needed.
-const PYTHON = process.env.PYTHON_BIN || (process.platform === "win32" ? "python" : "python3");
-
-function runML(input) {
-  return new Promise((resolve, reject) => {
-    const py = spawn(PYTHON, [SCRIPT, JSON.stringify(input)]);
-    let out = "", err = "";
-    const timer = setTimeout(() => { py.kill(); reject(new Error("ML timed out")); }, 30000);
-    py.on("error", e => { clearTimeout(timer); reject(new Error(`Could not start "${PYTHON}": ${e.message}. Set PYTHON_BIN in .env`)); });
-    py.stdout.on("data", d => (out += d));
-    py.stderr.on("data", d => (err += d));
-    py.on("close", () => {
-      clearTimeout(timer);
-      try { resolve(JSON.parse(out)); }
-      catch { reject(new Error(`ML failed: ${(err || out).slice(0, 300)}`)); }
-    });
-  });
-}
+const { runML } = require("../services/mlRunner");   // persistent Python worker (fast) with one-shot fallback
 
 // POST /api/performance/analyze/:campaignId
 // Scores a campaign from its REAL counters + real viewer comments.
@@ -105,13 +85,17 @@ router.get("/ab/:campaignId", auth, async (req, res) => {
     const vs = Array.isArray(c.variants) ? c.variants : [];
     if (vs.length < 2) return res.json({ active: false });
 
-    const { data: ev, error } = await supabase.from("ad_events").select("event_type, variant")
-      .eq("campaign_id", c.id).not("variant", "is", null).limit(50000);
+    const { data: ev, error } = await supabase.from("ad_events").select("event_type, variant, comment_text, created_at")
+      .eq("campaign_id", c.id).not("variant", "is", null).order("created_at", { ascending: false }).limit(50000);
     if (error) return res.status(400).json({ message: error.message });
 
     const stats = vs.map((url, i) => ({ index: i, image_url: url, views: 0, likes: 0, shares: 0, comments: 0, clicks: 0 }));
     const key = { view: "views", like: "likes", share: "shares", comment: "comments", click: "clicks" };
-    (ev || []).forEach(e => { if (stats[e.variant]) stats[e.variant][key[e.event_type]]++; });
+    (ev || []).forEach(e => {
+      const s = stats[e.variant]; if (!s) return;
+      s[key[e.event_type]]++;
+      if (e.event_type === "comment" && e.comment_text) (s.comment_texts = s.comment_texts || []).push(e.comment_text);   // newest first
+    });
 
     const result = await runML({ mode: "ab_test", platform: c.platform, variants: stats });
     if (result.error) return res.status(500).json({ message: result.error });
@@ -177,10 +161,86 @@ router.get("/dashboard", auth, async (req, res) => {
       best_campaign: [...scored].sort((a, b) => b.performance_score - a.performance_score)[0] || null,
       total_views: views, total_likes: sum("likes"), total_shares: sum("shares"),
       total_comments: sum("comments"), total_clicks: sum("clicks"),
-      overall_ctr: views ? Math.round(sum("clicks") / views * 10000) / 10000 : 0,
+      overall_ctr: views ? Math.round(Math.min(sum("clicks") / views, 1) * 10000) / 10000 : 0,
       by_platform, by_category, insights,
     });
   } catch (err) { res.status(500).json({ message: "Server error", detail: err.message }); }
+});
+
+// ---------------------------------------------------------------------------
+// GET /api/performance/report/:campaignId?format=csv|json&days=30
+// Downloadable campaign report (requirement FR-14): totals, score, daily timeline, A/B variants.
+// ---------------------------------------------------------------------------
+const csvCell = v => {
+  let t = v === null || v === undefined ? "" : String(v);
+  if (/^[=+\-@\t\r]/.test(t)) t = "'" + t;                       // stop spreadsheet formula injection
+  return /[",\n\r]/.test(t) ? '"' + t.replace(/"/g, '""') + '"' : t;
+};
+const csvRow = arr => arr.map(csvCell).join(",");
+
+router.get("/report/:campaignId", auth, async (req, res) => {
+  try {
+    const { data: c } = await supabase.from("campaigns").select("*")
+      .eq("id", req.params.campaignId).eq("user_id", req.user.id).single();
+    if (!c) return res.status(404).json({ message: "Campaign not found" });
+
+    const format = String(req.query.format || "csv").toLowerCase();
+    if (!["csv", "json"].includes(format)) return res.status(400).json({ message: "format must be csv or json" });
+    const days = Math.min(Math.max(parseInt(req.query.days) || 30, 1), 60);
+    const since = new Date(Date.now() - days * 864e5).toISOString();
+
+    const { data: ev, error } = await supabase.from("ad_events").select("event_type, variant, created_at")
+      .eq("campaign_id", c.id).gte("created_at", since).order("created_at", { ascending: true }).limit(50000);
+    if (error) return res.status(400).json({ message: error.message });
+
+    const key = { view: "views", like: "likes", share: "shares", comment: "comments", click: "clicks" };
+    const buckets = {};
+    for (let i = days - 1; i >= 0; i--) {
+      const d = new Date(Date.now() - i * 864e5).toISOString().slice(0, 10);
+      buckets[d] = { date: d, views: 0, likes: 0, shares: 0, comments: 0, clicks: 0 };
+    }
+    const variants = (Array.isArray(c.variants) ? c.variants : []).map((_, i) => ({ variant: i + 1, views: 0, likes: 0, shares: 0, comments: 0, clicks: 0 }));
+    (ev || []).forEach(e => {
+      const d = String(e.created_at).slice(0, 10);
+      if (buckets[d] && key[e.event_type]) buckets[d][key[e.event_type]]++;
+      if (e.variant !== null && e.variant !== undefined && variants[e.variant] && key[e.event_type]) variants[e.variant][key[e.event_type]]++;
+    });
+    const rate = (n, v) => (v > 0 ? Math.round(Math.min(n / v, 1) * 10000) / 10000 : 0);   // never above 100%
+    variants.forEach(v => { v.engagement_rate = rate(v.likes + v.shares + v.comments, v.views); v.ctr = rate(v.clicks, v.views); });
+
+    const views = c.views || 0, eng = (c.likes || 0) + (c.shares || 0) + (c.comments || 0);
+    const report = {
+      generated_at: new Date().toISOString(),
+      campaign: { id: c.id, brand: c.brand_name, category: c.category, platform: c.platform, audience: c.target_audience, headline: c.headline, created_at: c.created_at },
+      totals: { views, likes: c.likes || 0, shares: c.shares || 0, comments: c.comments || 0, clicks: c.clicks || 0, engagement_rate: rate(eng, views), ctr: rate(c.clicks || 0, views) },
+      score: { performance_score: c.performance_score ?? null, tier: c.performance_tier ?? null, confidence: c.performance_confidence ?? null, scored_at: c.scored_at ?? null },
+      timeline: Object.values(buckets),
+      variants,
+    };
+
+    res.set("Cache-Control", "no-store");
+    if (format === "json") return res.json(report);
+
+    const lines = [
+      csvRow(["Aakarshan AI campaign report"]),
+      csvRow(["Generated at", report.generated_at]),
+      csvRow(["Brand", report.campaign.brand]), csvRow(["Category", report.campaign.category]),
+      csvRow(["Platform", report.campaign.platform]), csvRow(["Audience", report.campaign.audience]),
+      csvRow(["Headline", report.campaign.headline]), "",
+      csvRow(["Metric", "Value"]),
+      ...Object.entries(report.totals).map(([k, v]) => csvRow([k, v])),
+      ...Object.entries(report.score).map(([k, v]) => csvRow([k, v])), "",
+      csvRow(["Daily timeline"]), csvRow(["date", "views", "likes", "shares", "comments", "clicks"]),
+      ...report.timeline.map(r => csvRow([r.date, r.views, r.likes, r.shares, r.comments, r.clicks])),
+    ];
+    if (variants.length) {
+      lines.push("", csvRow(["A/B variants"]), csvRow(["variant", "views", "likes", "shares", "comments", "clicks", "engagement_rate", "ctr"]),
+        ...variants.map(v => csvRow([v.variant, v.views, v.likes, v.shares, v.comments, v.clicks, v.engagement_rate, v.ctr])));
+    }
+    res.set("Content-Type", "text/csv; charset=utf-8");
+    res.set("Content-Disposition", `attachment; filename="aakarshan_report_${String(c.id).slice(0, 8)}.csv"`);
+    res.send("\ufeff" + lines.join("\r\n") + "\r\n");
+  } catch (err) { res.status(500).json({ message: "Report failed", detail: err.message }); }
 });
 
 module.exports = router;

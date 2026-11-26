@@ -1,0 +1,25 @@
+# Run the whole stack locally:   cp .env.example .env ; cp Backend/.env.example Backend/.env ; docker compose up --build
+# Frontend: http://localhost:8080      API: http://localhost:5000/api/health
+# (Supabase itself stays in the cloud; run the SQL files from Backend/ once in its SQL editor.)
+services:
+  backend:
+    build: ./Backend
+    env_file: ./Backend/.env
+    environment:
+      NODE_ENV: production
+      ALLOWED_ORIGINS: http://localhost:8080
+    ports: ["5000:5000"]
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:5000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+  frontend:
+    build:
+      context: ./Frontend
+      args:
+        VITE_SUPABASE_URL: ${VITE_SUPABASE_URL}
+        VITE_SUPABASE_ANON_KEY: ${VITE_SUPABASE_ANON_KEY}
+        VITE_API_URL: ${VITE_API_URL:-http://localhost:5000}
+    ports: ["8080:80"]
+    depends_on: [backend]

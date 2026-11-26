@@ -60,6 +60,17 @@ def sentiment_batch(texts):
     return out
 
 
+# A comment only counts as engagement in proportion to how positive it is:
+# positive = 1, neutral = 0.5, negative = 0. Otherwise angry comments would "boost" an ad.
+def comment_quality(total_comments, labels):
+    """Weight (0-1) applied to the raw comment count, from the classified sample of those comments."""
+    n = len(labels)
+    if total_comments <= 0 or n == 0:
+        return 1.0 if total_comments <= 0 else 0.5   # unclassified comments: assume neutral
+    pos, neu = labels.count("Positive"), labels.count("Neutral")
+    return (pos + 0.5 * neu) / n
+
+
 def mode_sentiment(d):
     texts = [str(t) for t in d.get("texts", [])][:200]
     return {"mode": "sentiment", "results": sentiment_batch(texts)}
@@ -83,8 +94,11 @@ def mode_analyze(d):
     ref = bm[used]
 
     # ---- engagement rate with small-sample shrinkage (Gamma-Poisson) ----
-    eng = likes + shares + comments
-    raw_rate = eng / views
+    sent = d.get("comment_texts") or []
+    sres = sentiment_batch([str(t) for t in sent][:200])
+    q = comment_quality(comments, [r["label"] for r in sres])
+    eng = likes + shares + comments * q          # sentiment-weighted engagement
+    raw_rate = min((likes + shares + comments) / views, 1.0)   # plain rate, shown as at most 100%
     prior = ref["median_er"]
     alpha, beta = eng + k * prior, views + k          # posterior of the true rate
     rate_hat = alpha / beta
@@ -104,13 +118,11 @@ def mode_analyze(d):
     # ---- component percentiles (with the same shrinkage) ----
     def comp(count, qkey):
         med = float(np.median(ref[qkey]))
-        r = (count + k * med) / (views + k)
+        r = ((count * (q if qkey == "comment_q" else 1.0)) + k * med) / (views + k)
         return round(pct(r, ref[qkey], grid), 1)
     components = {"likes": comp(likes, "like_q"), "shares": comp(shares, "share_q"), "comments": comp(comments, "comment_q")}
 
-    ctr = clicks / views
-    sent = d.get("comment_texts") or []
-    sres = sentiment_batch([str(t) for t in sent][:200])
+    ctr = min(clicks / views, 1.0)
     sent_counts = {"Positive": 0, "Neutral": 0, "Negative": 0}
     for r in sres:
         sent_counts[r["label"]] += 1
@@ -176,15 +188,30 @@ def mode_ab_test(d):
     ref = bm[d.get("platform")] if d.get("platform") in bm else bm["All"]
     k, prior = bm["shrinkage_pseudo_views"], ref["median_er"]
     vs = d["variants"]
+    # classify every variant's comments in ONE batch
+    texts, owner = [], []
+    for i, v in enumerate(vs):
+        for t in (v.get("comment_texts") or [])[:500]:
+            texts.append(str(t)); owner.append(i)
+    res = sentiment_batch(texts)
+    per = [[] for _ in vs]
+    for i, t, r in zip(owner, texts, res):
+        per[i].append({"text": t[:500], "label": r["label"]})
     rng = np.random.default_rng(1)
     N = 20000
     draws, rows = [], []
-    for v in vs:
-        views = int(v["views"]); eng = int(v["likes"]) + int(v["shares"]) + int(v["comments"])
+    for i, v in enumerate(vs):
+        views = int(v["views"]); ncom = int(v["comments"])
+        labels = [c["label"] for c in per[i]]
+        q = comment_quality(ncom, labels)
+        eng = int(v["likes"]) + int(v["shares"]) + ncom * q    # sentiment-weighted engagement
         a, b = eng + k * prior, views + k
         draws.append(gamma.rvs(a=a, scale=1.0 / b, size=N, random_state=rng))
-        rows.append({**v, "engagement_rate": round(eng / views, 4) if views else 0.0,
-                     "ctr": round(int(v["clicks"]) / views, 4) if views else 0.0,
+        base = {kk: vv for kk, vv in v.items() if kk != "comment_texts"}
+        rows.append({**base, "engagement_rate": round(min(eng / views, 1.0), 4) if views else 0.0,
+                     "sentiment": {"Positive": labels.count("Positive"), "Neutral": labels.count("Neutral"), "Negative": labels.count("Negative")},
+                     "comment_list": per[i],
+                     "ctr": round(min(int(v["clicks"]) / views, 1.0), 4) if views else 0.0,
                      "adjusted_rate": round(a / b, 4)})
     M = np.vstack(draws)
     best = M.argmax(axis=0)
@@ -216,7 +243,40 @@ def mode_insights(_):
             "benchmark_posts": bm["All"]["n"], "metrics": mt}
 
 
+DISPATCH = {"analyze": mode_analyze, "sentiment": mode_sentiment, "ab_test": mode_ab_test}
+
+
+def handle(data):
+    try:
+        return DISPATCH.get(data.get("mode"), mode_insights)(data)
+    except Exception as e:
+        return {"error": f"{type(e).__name__}: {e}"}
+
+
+def serve():
+    """Long-lived worker: one JSON request per stdin line ({"id","input"}), one JSON reply per stdout line.
+    numpy/scipy/sklearn and the sentiment model load ONCE, so a report takes milliseconds, not seconds."""
+    try:
+        joblib.load(os.path.join(HERE, "sentiment.pkl"))   # warm the OS file cache + imports
+        load_json("benchmark.json")
+    except Exception:
+        pass
+    print(json.dumps({"ready": True}), flush=True)
+    for line in sys.stdin:
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            req = json.loads(line)
+            out = {"id": req.get("id"), "result": handle(req.get("input") or {})}
+        except Exception as e:
+            out = {"id": None, "result": {"error": f"Bad request: {e}"}}
+        print(json.dumps(out), flush=True)
+
+
 def main():
+    if len(sys.argv) >= 2 and sys.argv[1] == "--serve":
+        return serve()
     if len(sys.argv) < 2:
         print(json.dumps({"error": "No input"})); sys.exit(1)
     try:

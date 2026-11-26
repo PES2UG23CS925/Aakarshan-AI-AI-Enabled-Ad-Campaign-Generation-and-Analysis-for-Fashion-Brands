@@ -1,6 +1,6 @@
 const Module = require("module");
 const B=require("path").join(__dirname,"..")+"/";
-process.env.SUPABASE_URL="https://proj.supabase.co"; process.env.PORT="0"; process.env.GROQ_API_KEY="k";
+process.env.SUPABASE_URL="https://proj.supabase.co"; process.env.SUPABASE_SERVICE_ROLE_KEY = "test-key"; process.env.PORT="0"; process.env.GROQ_API_KEY="k";
 // This suite verifies the STRICT, real-deployment rate limits (NODE_ENV=production).
 // The separate simulate_traffic.test.js verifies the relaxed local-dev limits instead.
 process.env.NODE_ENV="production";

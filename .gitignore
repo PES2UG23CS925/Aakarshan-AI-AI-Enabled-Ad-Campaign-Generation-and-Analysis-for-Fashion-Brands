@@ -22,3 +22,7 @@ Frontend/dist/
 __pycache__/
 .pytest_cache/
 *.pyc
+
+.env
+**/.env
+.pytest_cache/

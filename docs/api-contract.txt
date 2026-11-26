@@ -1,0 +1,45 @@
+AAKARSHAN AI – BACKEND API CONTRACT
+
+1. AUTHENTICATION APIs
+POST   /api/auth/login
+POST   /api/auth/logout
+GET    /api/auth/profile
+
+2. CAMPAIGN MANAGEMENT (CRUD)
+POST   /api/campaigns
+GET    /api/campaigns
+GET    /api/campaigns/{campaignId}
+PUT    /api/campaigns/{campaignId}
+DELETE /api/campaigns/{campaignId}
+
+3. AD GENERATION
+POST   /api/campaigns/{campaignId}/ads
+GET    /api/campaigns/{campaignId}/ads
+GET    /api/ads/{adId}
+DELETE /api/ads/{adId}
+
+4. ENGAGEMENT TRACKING
+POST   /api/ads/{adId}/engagement
+GET    /api/ads/{adId}/engagement
+GET    /api/campaigns/{campaignId}/engagement
+
+5. ANALYTICS
+GET    /api/campaigns/{campaignId}/analytics
+GET    /api/ads/{adId}/analytics
+
+6. ML PREDICTION
+GET    /api/campaigns/{campaignId}/prediction
+GET    /api/ads/{adId}/prediction
+
+7. DASHBOARD
+GET    /api/dashboard/summary
+GET    /api/dashboard/top-campaigns
+GET    /api/dashboard/recent-activity
+
+8. CAMPAIGN HISTORY
+GET    /api/campaigns/history
+GET    /api/campaigns/{campaignId}/summary
+
+9. SYSTEM & HEALTH
+GET    /api/health
+GET    /api/version
